@@ -18,6 +18,7 @@ import type { Metadata, ModelRef, Part, Session, TextPart } from "@/lib/opencode
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { opencodeClient, type SkillMentions } from "@/lib/opencode/client"
+import { buildSkillMentionInstruction } from "@/lib/skillMentionInstruction"
 import { runtimeFetch } from "@/lib/runtime-fetch"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -270,7 +271,9 @@ export async function routeMessage(params: {
     if (matchedSkill) {
       skills = {
         names: [...new Set([matchedSkill.name, ...(params.skills?.names ?? [])])],
-        instructionFor: (names) => params.skills?.instructionFor(names) ?? null,
+        // Callers without a composer (multi-run) pass no builder; the skill
+        // still has to be named when it cannot be attached.
+        instructionFor: params.skills?.instructionFor ?? buildSkillMentionInstruction,
       }
     }
   }
