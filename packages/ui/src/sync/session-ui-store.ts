@@ -214,18 +214,16 @@ export async function routeMessage(params: {
     return 'shell'
   }
 
-  // Slash commands — fire and forget, SSE delivers messages and status
+  let skills = params.skills
+  // Slash commands use the command route; skills attach to a normal prompt.
   if (params.content.startsWith("/")) {
     const [head, ...tail] = params.content.split(" ")
     const cmdName = head.slice(1)
 
     // Commands and skills are resolved for the session's own directory. A
     // project root and one of its worktrees can define different commands
-    // under the same name, and the wrong one would change the contextual
-    // prompt below. OpenCode registers every skill as a command
-    // (source: "skill"), but the commands store filters skills out, so the
-    // skills store is consulted separately to keep a skill's invocation
-    // semantics (#1605).
+    // under the same name. OpenCode 2.x lists skills separately and accepts
+    // them as prompt attachments rather than commands.
     let matchedCommand = selectCommandsForDirectory(useCommandsStore.getState(), requestDirectory)
       .find((c) => c.name === cmdName)
     const matchedSkill = selectSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
@@ -242,7 +240,7 @@ export async function routeMessage(params: {
         .find((c) => c.name === cmdName)
     }
 
-    if (matchedCommand || matchedSkill) {
+    if (matchedCommand) {
       // The command route takes files only, so attached context (a quoted
       // selection, pinned knowledge, prepared conflict instructions) is
       // admitted ahead of it as synthetic messages. Sending "/name args" as
@@ -268,6 +266,13 @@ export async function routeMessage(params: {
       })
       return 'command'
     }
+
+    if (matchedSkill) {
+      skills = {
+        names: [...new Set([matchedSkill.name, ...(params.skills?.names ?? [])])],
+        instructionFor: (names) => params.skills?.instructionFor(names) ?? null,
+      }
+    }
   }
 
   // Normal prompt — optimistic insert so message appears instantly
@@ -291,7 +296,7 @@ export async function routeMessage(params: {
       delivery: params.delivery,
       messageId: messageID,
       directory: requestDirectory,
-      skills: params.skills,
+      skills,
     }).then(() => {}),
   })
   return 'prompt'
